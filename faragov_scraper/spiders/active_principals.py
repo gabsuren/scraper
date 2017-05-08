@@ -15,7 +15,7 @@ REG_NAME = "REGISTRANT_NAME BREAK_COUNTRY_NAME"
 
 class AcrtivePrincipal(scrapy.Item):
     """
-    Active Principal Item class   
+    Active Principal Item class
     """
     url = scrapy.Field()
     country = scrapy.Field()
@@ -34,7 +34,10 @@ class ActivePrincipalsSpider(scrapy.Spider):
     """
     name = "ActivePrincipals"
     base_url = "https://efile.fara.gov/pls/apex/"
-    start_urls = [base_url + 'f?p=171:130:0::NO:RP,130:P130_DATERANGE:N']
+
+    # Temporary Used direct link here
+    tail_url = "f?p=171:130:0::NO:RP,130:P130_DATERANGE:N"
+    start_urls = [base_url + tail_url]
 
     # These are hard coded values for POST request.
     post_data = {'p_request': 'APXWGT',
@@ -46,22 +49,26 @@ class ActivePrincipalsSpider(scrapy.Spider):
                  'p_widget_action': 'PAGE',
                  'x01': '80340213897823017',
                  'x02': '80341508791823021'}
-
-    # Used in POST request to get next page result(incremented by 15 after parsing current page)
+    """
+    # Used in POST request to get next page result
+     (incremented by 15 after parsing current page)
+    """
     pgR_min_row = 1
 
     def parse(self, response):
         """
-        Parses the response from the initial request. 
+        Parses the response from the initial request.
         Constructs ActivePrincipal object and calls appropriate requests.
-        When the page 
-        :param response: 
-        :return FormRequest generator: 
+        :param response:
+        :return FormRequest generator:
         """
-        work_sheet_table = response.xpath("//table[@class='" + WORKSHEET_TABLE + "']")
+        work_sheet_table = response.xpath(
+                                    "//table[@class='" +
+                                    WORKSHEET_TABLE + "']")
         count = 0
         if (work_sheet_table is not None):
-            for tr in work_sheet_table.xpath(".//tr[@class='odd' or @class='even']"):
+            for tr in work_sheet_table.xpath(
+                                    ".//tr[@class='odd' or @class='even']"):
                 count += 1
                 item = self.get_item_from_tr(tr)
 
@@ -69,42 +76,61 @@ class ActivePrincipalsSpider(scrapy.Spider):
                 yield scrapy.Request(item['url'], callback=self.parse_profile,
                                      meta={'item': item})
 
-                #When page parsed completely sends request to get next page
+                # When page parsed completely sends request to get next page
                 if count == 15:
                     self.pgR_min_row += count
-                    self.post_data['p_widget_action_mod'] = 'pgR_min_row=' + str(
-                        self.pgR_min_row) + 'max_rows=15rows_fetched=15',
-                    yield scrapy.FormRequest(url="https://efile.fara.gov/pls/apex/wwv_flow.show",
-                                             formdata=self.post_data, method="post", callback=self.parse)
+                    self.post_data['p_widget_action_mod'] = 'pgR_min_row=' +\
+                        str(self.pgR_min_row) +\
+                        'max_rows=15rows_fetched=15'
+                    yield scrapy.FormRequest(
+                          url="https://efile.fara.gov/pls/apex/wwv_flow.show",
+                          formdata=self.post_data,
+                          method="post",
+                          callback=self.parse)
 
     def get_item_from_tr(self, tr):
         """
         Takes as an argument the <tr> selector,
-        then parses the inner <td> tags and creates AcrtivePrincipal item object
-        :param tr: 
+        then parses the inner <td>tags and creates AcrtivePrincipal item object
+        :param tr:
         :return: AcrtivePrincipal Item object
         """
         item = AcrtivePrincipal()
         item['url'] = self.base_url + tr.xpath(
-            ".//td[contains(@headers,'" + COUNTRY_LINK + "')]/a/@href").extract_first()
-        item['country'] = tr.xpath(".//td[contains(@headers,'" + COUNTRY_NAME + "')]/text()").extract_first()
-        item['state'] = tr.xpath(".//td[contains(@headers,'" + COUNTRY_STATE + "')]/text()").extract_first()
-        item['reg_num'] = tr.xpath(".//td[contains(@headers,'" + REG_NUMBER + "')]/text()").extract_first()
-        item['address'] = tr.xpath(".//td[contains(@headers,'" + ADDRESS + "')]/text()").extract_first()
+                            ".//td[contains(@headers,'" +
+                            COUNTRY_LINK + "')]/a/@href").extract_first()
+        item['country'] = tr.xpath(
+                            ".//td[contains(@headers,'" +
+                            COUNTRY_NAME + "')]/text()").extract_first()
+        item['state'] = tr.xpath(
+                            ".//td[contains(@headers,'" +
+                            COUNTRY_STATE + "')]/text()").extract_first()
+        item['reg_num'] = tr.xpath(
+                            ".//td[contains(@headers,'" +
+                            REG_NUMBER + "')]/text()").extract_first()
+        item['address'] = tr.xpath(
+                            ".//td[contains(@headers,'" +
+                            ADDRESS + "')]/text()").extract_first()
         item['foreign_principal'] = tr.xpath(
-            ".//td[contains(@headers,'" + FOREIGN_PRINCIPAL + "')]/text()").extract_first()
-        item['date'] = tr.xpath(".//td[contains(@headers,'" + REG_DATE + "')]/text()").extract_first()
-        item['registrant'] = tr.xpath(".//td[contains(@headers,'" + REG_NAME + "')]/text()").extract_first()
+                            ".//td[contains(@headers,'" +
+                            FOREIGN_PRINCIPAL + "')]/text()").extract_first()
+        item['date'] = tr.xpath(
+                            ".//td[contains(@headers,'" +
+                            REG_DATE + "')]/text()").extract_first()
+        item['registrant'] = tr.xpath(
+                            ".//td[contains(@headers,'" +
+                            REG_NAME + "')]/text()").extract_first()
         return item
 
     def parse_profile(self, response):
         """
         Parses and gets href of document link(DOCLINK) from response,
         then sets that value to exhibit_url of AcrtivePrincipal item object
-        :param response: 
-        :return ActivePrincipal Item object generator: 
+        :param response:
+        :return ActivePrincipal Item object generator:
         """
-        exhibit_url = response.xpath("//td[@headers='DOCLINK']/a/@href").extract_first()
+        exhibit_url = response.xpath(
+                        "//td[@headers='DOCLINK']/a/@href").extract_first()
         item = response.meta['item']
         item['exhibit_url'] = exhibit_url
         yield item
